@@ -1,0 +1,112 @@
+# 模型配置文件
+
+# 人脸检测配置
+face_detection:
+  model_type: "yolov8"  # 可选: yolov8, mtcnn, retinaface
+  model_path: "models/weights/yolov8-face.pt"
+  confidence_threshold: 0.5
+  nms_threshold: 0.4
+  input_size: [640, 640]
+  device: "cuda"  # cuda 或 cpu
+
+# 手部检测配置
+hand_detection:
+  model_type: "mediapipe"  # 可选: mediapipe, yolov8
+  model_path: "models/weights/yolov8-hand.pt"
+  confidence_threshold: 0.7
+  max_hands: 2
+  detection_confidence: 0.5
+  tracking_confidence: 0.5
+
+# 眼睛状态分类配置
+eye_state:
+  model_type: "resnet"  # 可选: resnet, efficientnet, mobilenet
+  model_path: "models/weights/eye_state_resnet.pth"
+  num_classes: 2  # 0: 闭眼, 1: 睁眼
+  input_size: [224, 224]
+  confidence_threshold: 0.8
+
+# 嘴巴状态分类配置
+mouth_state:
+  model_type: "resnet"
+  model_path: "models/weights/mouth_state_resnet.pth"
+  num_classes: 2  # 0: 闭嘴, 1: 张嘴
+  input_size: [224, 224]
+  confidence_threshold: 0.8
+
+# 手势分类配置
+gesture_classification:
+  model_type: "efficientnet"  # 可选: efficientnet, resnet, mobilenet
+  model_path: "models/weights/gesture_efficientnet.pth"
+  num_classes: 10  # 手势类别数
+  input_size: [224, 224]
+  confidence_threshold: 0.7
+  gesture_classes:
+    - "fist"        # 握拳
+    - "open_palm"   # 张开手掌
+    - "thumbs_up"   # 竖大拇指
+    - "thumbs_down" # 拇指向下
+    - "peace"       # 比耶
+    - "ok"          # OK 手势
+    - "pointing"    # 指向
+    - "wave"        # 挥手
+    - "pinch"       # 捏合
+    - "none"        # 无手势
+
+# 头部姿态估计配置
+head_pose:
+  model_type: "mediapipe"  # 可选: mediapipe, dlib
+  landmarks_path: "models/weights/shape_predictor_68_face_landmarks.dat"
+  euler_angles_threshold:
+    yaw: 30    # 左右转头角度阈值
+    pitch: 20  # 上下点头角度阈值
+    roll: 15   # 左右歪头角度阈值
+
+# 疲劳检测配置
+fatigue_detection:
+  # 眼睛闭合阈值 (EAR - Eye Aspect Ratio)
+  ear_threshold: 0.25
+  ear_consecutive_frames: 3  # 连续多少帧判定为闭眼
+
+  # 打哈欠阈值 (MAR - Mouth Aspect Ratio)
+  mar_threshold: 0.6
+  mar_consecutive_frames: 5
+
+  # 疲劳判定
+  fatigue_score_threshold: 0.6  # 疲劳分数阈值
+  fatigue_time_window: 30  # 时间窗口（秒）
+
+  # 分心判定
+  distraction_angle_threshold: 30  # 头部偏转角度阈值
+  distraction_time_threshold: 3  # 分心时间阈值（秒）
+
+# 动态手势识别配置
+dynamic_gesture:
+  model_type: "lstm"  # 可选: lstm, transformer, 3dcnn
+  model_path: "models/weights/dynamic_gesture_lstm.pth"
+  sequence_length: 30  # 序列长度（帧数）
+  hidden_size: 256
+  num_layers: 2
+  num_classes: 5  # 动态手势类别数
+  gesture_classes:
+    - "swipe_left"    # 左滑
+    - "swipe_right"   # 右滑
+    - "swipe_up"      # 上滑
+    - "swipe_down"    # 下滑
+    - "circle"        # 画圈
+
+# 模型融合配置
+model_fusion:
+  enable_tracking: true  # 是否启用目标跟踪
+  tracking_method: "sort"  # 跟踪方法: sort, deep_sort
+  fusion_method: "weighted_average"  # 融合方法: weighted_average, attention
+  temporal_window: 5  # 时序融合窗口
+
+# 性能优化配置
+optimization:
+  use_half_precision: false  # 是否使用半精度(FP16)
+  batch_size: 1
+  num_workers: 4
+  enable_tensorrt: false  # 是否启用 TensorRT 加速
+  enable_onnx: false  # 是否启用 ONNX 优化
+  cache_size: 100  # 缓存大小

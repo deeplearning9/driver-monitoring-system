@@ -1,0 +1,118 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+env/
+ENV/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+
+# PyCharm
+.idea/
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# 模型权重文件
+*.pt
+*.pth
+*.onnx
+*.tflite
+*.pb
+models/weights/
+
+# 数据文件
+data/raw/
+data/processed/
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.bmp
+*.mp4
+*.avi
+*.mov
+
+# 日志文件
+logs/
+*.log
+
+# 检查点
+checkpoints/
+outputs/
+
+# 配置文件（本地）
+.env
+*.local.yaml
+
+# 测试文件
+.pytest_cache/
+htmlcov/
+.coverage
+coverage.xml
+
+# 文档构建
+docs/_build/
+
+# 临时文件
+*.tmp
+*.temp
+.cache/
+
+# TensorBoard
+runs/
+
+# WandB
+wandb/
+
+# Docker
+.dockerignore
+
+# 依赖文件
+Pipfile.lock
+poetry.lock
+
+# 系统文件
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# 项目特定
+data/samples/*_result.*
+output.mp4
