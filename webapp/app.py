@@ -123,7 +123,7 @@ async def startup_event():
 @app.get("/", response_class=HTMLResponse)
 async def root(request: Request):
     """主页"""
-    return templates.TemplateResponse("index.html", {"request": request})
+    return templates.TemplateResponse(request=request, name="index.html")
 
 
 @app.get("/api/status")
@@ -299,7 +299,7 @@ def main():
     print(f"API 文档: http://{args.host}:{args.port}/docs")
 
     uvicorn.run(
-        "webapp.app:app",
+        app,
         host=args.host,
         port=args.port,
         reload=args.reload

@@ -115,4 +115,9 @@ Thumbs.db
 
 # 项目特定
 data/samples/*_result.*
+data/demo/
 output.mp4
+
+# 临时依赖文件
+requirements_clean.txt
+requirements_temp.txt

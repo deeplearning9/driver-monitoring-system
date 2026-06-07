@@ -67,6 +67,7 @@ class EyeStateDetector:
         self.input_size = config.get('input_size', [224, 224])
         self.confidence_threshold = config.get('confidence_threshold', 0.8)
         self.device = config.get('device', 'cuda' if torch.cuda.is_available() else 'cpu')
+        self.ear_threshold = config.get('ear_threshold', 0.22)
 
         # 类别标签
         self.classes = ['closed', 'open']
@@ -82,11 +83,35 @@ class EyeStateDetector:
         ])
 
         # 加载模型
+        self.use_ear = False
         self.model = self._load_model()
+
+        # EAR 模式下使用 MediaPipe face mesh
+        if self.use_ear:
+            import mediapipe as mp
+            self.mp_face_mesh = mp.solutions.face_mesh
+            self.face_mesh = self.mp_face_mesh.FaceMesh(
+                static_image_mode=True,
+                max_num_faces=1,
+                refine_landmarks=True,
+                min_detection_confidence=0.5
+            )
+            # MediaPipe 眼睛关键点索引
+            self.LEFT_EYE = [362, 382, 381, 380, 374, 373, 263, 466, 388, 387, 386, 385, 384, 398]
+            self.RIGHT_EYE = [33, 7, 163, 144, 145, 153, 154, 155, 133, 173, 157, 158, 159, 160]
+            # EAR 计算用的关键点（上下眼睑 + 内外眼角）
+            self.LEFT_EYE_EAR = [385, 386, 387, 380, 374, 373]
+            self.RIGHT_EYE_EAR = [159, 158, 157, 145, 144, 133]
+            print("使用 EAR 模式检测眼睛状态（基于面部关键点）")
 
     def _load_model(self) -> nn.Module:
         """加载模型"""
         model_path = self.config.get('model_path')
+
+        if not model_path:
+            print("未指定模型路径，将使用 EAR 模式")
+            self.use_ear = True
+            return None
 
         # 创建模型
         model = EyeStateClassifier(
@@ -95,21 +120,85 @@ class EyeStateDetector:
         )
 
         # 加载预训练权重
-        if model_path:
-            try:
-                state_dict = torch.load(model_path, map_location=self.device)
-                model.load_state_dict(state_dict)
-                print(f"加载眼睛状态模型: {model_path}")
-            except Exception as e:
-                print(f"加载模型失败: {e}")
-                print("使用随机初始化的模型")
-        else:
-            print("未指定模型路径，使用随机初始化的模型")
+        try:
+            state_dict = torch.load(model_path, map_location=self.device)
+            model.load_state_dict(state_dict)
+            print(f"加载眼睛状态模型: {model_path}")
+        except Exception as e:
+            print(f"加载模型失败: {e}")
+            print("将使用 EAR 模式")
+            self.use_ear = True
+            return None
 
         model = model.to(self.device)
         model.eval()
 
         return model
+
+    def _calculate_ear_from_landmarks(self, landmarks, eye_indices, image_w, image_h):
+        """从 MediaPipe 关键点计算 EAR"""
+        # 提取 6 个关键点坐标
+        points = []
+        for idx in eye_indices:
+            lm = landmarks[idx]
+            points.append((lm.x * image_w, lm.y * image_h))
+
+        # 计算垂直距离
+        v1 = np.linalg.norm(np.array(points[1]) - np.array(points[5]))
+        v2 = np.linalg.norm(np.array(points[2]) - np.array(points[4]))
+
+        # 计算水平距离
+        h = np.linalg.norm(np.array(points[0]) - np.array(points[3]))
+
+        if h == 0:
+            return 0.0
+
+        ear = (v1 + v2) / (2.0 * h)
+        return ear
+
+    def _predict_ear(self, eye_image: np.ndarray) -> Dict:
+        """使用 EAR 方法预测眼睛状态"""
+        rgb_image = cv2.cvtColor(eye_image, cv2.COLOR_BGR2RGB)
+        h, w = eye_image.shape[:2]
+
+        results = self.face_mesh.process(rgb_image)
+
+        if not results.multi_face_landmarks:
+            # 没有检测到面部，返回默认值
+            return {
+                'state': 'open',
+                'confidence': 0.5,
+                'probabilities': {'closed': 0.5, 'open': 0.5}
+            }
+
+        face_landmarks = results.multi_face_landmarks[0].landmark
+
+        # 计算左右眼 EAR
+        left_ear = self._calculate_ear_from_landmarks(face_landmarks, self.LEFT_EYE_EAR, w, h)
+        right_ear = self._calculate_ear_from_landmarks(face_landmarks, self.RIGHT_EYE_EAR, w, h)
+        avg_ear = (left_ear + right_ear) / 2.0
+
+        # 判断状态
+        if avg_ear < self.ear_threshold:
+            state = 'closed'
+            confidence = min(1.0, (self.ear_threshold - avg_ear) / self.ear_threshold)
+        else:
+            state = 'open'
+            confidence = min(1.0, avg_ear / (self.ear_threshold * 2))
+
+        # 转换为概率
+        if state == 'closed':
+            prob_closed = 0.5 + confidence * 0.5
+            prob_open = 1.0 - prob_closed
+        else:
+            prob_open = 0.5 + confidence * 0.5
+            prob_closed = 1.0 - prob_open
+
+        return {
+            'state': state,
+            'confidence': confidence,
+            'probabilities': {'closed': prob_closed, 'open': prob_open}
+        }
 
     def preprocess(self, eye_image: np.ndarray) -> torch.Tensor:
         """
@@ -148,6 +237,11 @@ class EyeStateDetector:
             - confidence: 置信度
             - probabilities: 各类别概率
         """
+        # 使用 EAR 模式
+        if self.use_ear:
+            return self._predict_ear(eye_image)
+
+        # 使用 CNN 模型
         # 预处理
         input_tensor = self.preprocess(eye_image)
 

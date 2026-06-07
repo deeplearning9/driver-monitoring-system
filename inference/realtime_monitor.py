@@ -120,28 +120,39 @@ class DriverMonitor:
             if face_image.size == 0:
                 continue
 
-            # 眼睛状态检测（简化版：假设眼睛在脸上半部分）
             h, w = face_image.shape[:2]
-            eye_region = face_image[0:int(h*0.4), :]
 
-            if eye_region.size > 0:
-                try:
-                    eye_state = self.eye_detector.predict(eye_region)
-                    self.eye_state_history.append(eye_state)
-                    results['eyes'].append(([x1, y1, x1+w, y1+int(h*0.4)], eye_state))
-                except Exception as e:
-                    pass
+            # 眼睛状态检测
+            # EAR 模式需要完整人脸图片，CNN 模式需要裁剪的眼睛区域
+            try:
+                if self.eye_detector.use_ear:
+                    eye_state = self.eye_detector.predict(face_image)
+                else:
+                    eye_region = face_image[0:int(h*0.4), :]
+                    if eye_region.size > 0:
+                        eye_state = self.eye_detector.predict(eye_region)
+                    else:
+                        continue
+                self.eye_state_history.append(eye_state)
+                results['eyes'].append(([x1, y1, x1+w, y1+int(h*0.4)], eye_state))
+            except Exception as e:
+                pass
 
-            # 嘴巴状态检测（简化版：假设嘴巴在脸下半部分）
-            mouth_region = face_image[int(h*0.6):h, :]
-
-            if mouth_region.size > 0:
-                try:
-                    mouth_state = self.mouth_detector.predict(mouth_region)
-                    self.mouth_state_history.append(mouth_state)
-                    results['mouths'].append(([x1, y1+int(h*0.6), x1+w, y1+h], mouth_state))
-                except Exception as e:
-                    pass
+            # 嘴巴状态检测
+            # MAR 模式需要完整人脸图片，CNN 模式需要裁剪的嘴巴区域
+            try:
+                if self.mouth_detector.use_mar:
+                    mouth_state = self.mouth_detector.predict(face_image)
+                else:
+                    mouth_region = face_image[int(h*0.6):h, :]
+                    if mouth_region.size > 0:
+                        mouth_state = self.mouth_detector.predict(mouth_region)
+                    else:
+                        continue
+                self.mouth_state_history.append(mouth_state)
+                results['mouths'].append(([x1, y1+int(h*0.6), x1+w, y1+h], mouth_state))
+            except Exception as e:
+                pass
 
         # 处理每只检测到的手
         for hand in hand_detections:

@@ -67,6 +67,7 @@ class MouthStateDetector:
         self.input_size = config.get('input_size', [224, 224])
         self.confidence_threshold = config.get('confidence_threshold', 0.8)
         self.device = config.get('device', 'cuda' if torch.cuda.is_available() else 'cpu')
+        self.mar_threshold = config.get('mar_threshold', 0.35)
 
         # 类别标签
         self.classes = ['closed', 'open']
@@ -82,11 +83,31 @@ class MouthStateDetector:
         ])
 
         # 加载模型
+        self.use_mar = False
         self.model = self._load_model()
+
+        # MAR 模式下使用 MediaPipe face mesh
+        if self.use_mar:
+            import mediapipe as mp
+            self.mp_face_mesh = mp.solutions.face_mesh
+            self.face_mesh = self.mp_face_mesh.FaceMesh(
+                static_image_mode=True,
+                max_num_faces=1,
+                refine_landmarks=True,
+                min_detection_confidence=0.5
+            )
+            # MediaPipe 嘴巴关键点索引（上下嘴唇 + 嘴角）
+            self.MOUTH_EAR_INDICES = [13, 14, 78, 308, 82, 312]
+            print("使用 MAR 模式检测嘴巴状态（基于面部关键点）")
 
     def _load_model(self) -> nn.Module:
         """加载模型"""
         model_path = self.config.get('model_path')
+
+        if not model_path:
+            print("未指定模型路径，将使用 MAR 模式")
+            self.use_mar = True
+            return None
 
         # 创建模型
         model = MouthStateClassifier(
@@ -95,21 +116,81 @@ class MouthStateDetector:
         )
 
         # 加载预训练权重
-        if model_path:
-            try:
-                state_dict = torch.load(model_path, map_location=self.device)
-                model.load_state_dict(state_dict)
-                print(f"加载嘴巴状态模型: {model_path}")
-            except Exception as e:
-                print(f"加载模型失败: {e}")
-                print("使用随机初始化的模型")
-        else:
-            print("未指定模型路径，使用随机初始化的模型")
+        try:
+            state_dict = torch.load(model_path, map_location=self.device)
+            model.load_state_dict(state_dict)
+            print(f"加载嘴巴状态模型: {model_path}")
+        except Exception as e:
+            print(f"加载模型失败: {e}")
+            print("将使用 MAR 模式")
+            self.use_mar = True
+            return None
 
         model = model.to(self.device)
         model.eval()
 
         return model
+
+    def _calculate_mar_from_landmarks(self, landmarks, image_w, image_h):
+        """从 MediaPipe 关键点计算 MAR"""
+        # 上唇中心 (13), 下唇中心 (14)
+        top_lip = (landmarks[13].x * image_w, landmarks[13].y * image_h)
+        bottom_lip = (landmarks[14].x * image_w, landmarks[14].y * image_h)
+
+        # 左嘴角 (78), 右嘴角 (308)
+        left_corner = (landmarks[78].x * image_w, landmarks[78].y * image_h)
+        right_corner = (landmarks[308].x * image_w, landmarks[308].y * image_h)
+
+        # 垂直距离（上下唇）
+        v = np.linalg.norm(np.array(top_lip) - np.array(bottom_lip))
+
+        # 水平距离（嘴角）
+        h = np.linalg.norm(np.array(left_corner) - np.array(right_corner))
+
+        if h == 0:
+            return 0.0
+
+        mar = v / h
+        return mar
+
+    def _predict_mar(self, mouth_image: np.ndarray) -> Dict:
+        """使用 MAR 方法预测嘴巴状态"""
+        rgb_image = cv2.cvtColor(mouth_image, cv2.COLOR_BGR2RGB)
+        h, w = mouth_image.shape[:2]
+
+        results = self.face_mesh.process(rgb_image)
+
+        if not results.multi_face_landmarks:
+            return {
+                'state': 'closed',
+                'confidence': 0.5,
+                'probabilities': {'closed': 0.5, 'open': 0.5}
+            }
+
+        face_landmarks = results.multi_face_landmarks[0].landmark
+        mar = self._calculate_mar_from_landmarks(face_landmarks, w, h)
+
+        # 判断状态
+        if mar > self.mar_threshold:
+            state = 'open'
+            confidence = min(1.0, mar / (self.mar_threshold * 2))
+        else:
+            state = 'closed'
+            confidence = min(1.0, (self.mar_threshold - mar) / self.mar_threshold)
+
+        # 转换为概率
+        if state == 'open':
+            prob_open = 0.5 + confidence * 0.5
+            prob_closed = 1.0 - prob_open
+        else:
+            prob_closed = 0.5 + confidence * 0.5
+            prob_open = 1.0 - prob_closed
+
+        return {
+            'state': state,
+            'confidence': confidence,
+            'probabilities': {'closed': prob_closed, 'open': prob_open}
+        }
 
     def preprocess(self, mouth_image: np.ndarray) -> torch.Tensor:
         """
@@ -148,6 +229,11 @@ class MouthStateDetector:
             - confidence: 置信度
             - probabilities: 各类别概率
         """
+        # 使用 MAR 模式
+        if self.use_mar:
+            return self._predict_mar(mouth_image)
+
+        # 使用 CNN 模型
         # 预处理
         input_tensor = self.preprocess(mouth_image)
 
