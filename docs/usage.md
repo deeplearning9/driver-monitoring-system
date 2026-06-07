@@ -27,6 +27,90 @@ pip install -r requirements.txt
 pip install -e .
 ```
 
+## 使用 PyCharm 运行项目
+
+### 1. 打开项目
+
+1. 打开 PyCharm
+2. 选择 `File → Open`
+3. 选择项目文件夹 `Driver_Status_and_Gesture_Monitoring_System`
+4. 点击 `OK`
+
+### 2. 配置 Python 解释器
+
+1. 选择 `File → Settings → Project → Python Interpreter`
+2. 点击右上角齿轮图标 → `Add`
+3. 选择 `Existing environment`
+4. 解释器路径选择项目下的虚拟环境：
+   - Windows: `venv\Scripts\python.exe`
+   - Linux/Mac: `venv/bin/python`
+5. 点击 `OK` 确认
+
+### 3. 安装依赖（PyCharm 内）
+
+1. 打开 PyCharm 底部的 `Terminal`（终端）
+2. 运行：
+   ```bash
+   pip install -r requirements.txt
+   pip install -e .
+   ```
+
+### 4. 运行脚本
+
+#### 方法一：右键运行
+
+1. 在左侧项目文件树中找到要运行的脚本，例如 `inference/demo.py`
+2. 右键点击 → `Run 'demo'`
+
+#### 方法二：配置运行参数
+
+1. 点击右上角的运行配置下拉框 → `Edit Configurations`
+2. 点击 `+` → `Python`
+3. 配置：
+   - **Name**: `摄像头监控`
+   - **Script path**: `inference/demo.py`
+   - **Parameters**: `--camera`
+   - **Working directory**: 项目根目录
+4. 点击 `OK`
+5. 点击绿色三角 ▶ 运行
+
+#### 常用运行配置
+
+| 名称 | Script path | Parameters |
+|---|---|---|
+| 摄像头监控 | `inference/demo.py` | `--camera` |
+| Web 界面 | `webapp/app.py` | （留空） |
+| 训练眼睛模型 | `training/train_eye_state.py` | `--demo --epochs 5` |
+| 训练嘴巴模型 | `training/train_mouth_state.py` | `--demo --epochs 5` |
+| 训练手势模型 | `training/train_gesture.py` | `--demo --epochs 10` |
+| 生成演示数据 | `tools/generate_demo_data.py` | `--task all` |
+| 模型评估 | `tools/evaluate_model.py` | `--task eye_state --demo` |
+
+### 5. 调试代码
+
+1. 在代码行号左侧点击设置断点（红色圆点）
+2. 右键脚本 → `Debug '脚本名'`
+3. 使用调试工具栏：
+   - **Step Over** (F8): 执行当前行
+   - **Step Into** (F7): 进入函数内部
+   - **Resume** (F9): 继续运行到下一个断点
+   - **Stop** (Ctrl+F2): 停止调试
+
+### 6. PyCharm 终端运行
+
+也可以直接在 PyCharm 的 Terminal 中运行命令：
+
+```bash
+# 激活虚拟环境（PyCharm 通常自动激活）
+.\venv\Scripts\Activate.ps1
+
+# 运行训练
+python training/train_eye_state.py --demo --epochs 5
+
+# 启动 Web 服务
+python webapp/app.py
+```
+
 ## 快速开始
 
 ### 1. 摄像头实时监控
